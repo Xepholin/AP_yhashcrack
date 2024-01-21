@@ -1,0 +1,426 @@
+#+TITLE: Analyse des performances et optimisation d'un outil pour casser des signatures de mots de passes
+#+AUTHOR: yaspr
+
+* Introduction 
+  
+  Dans le monde du service numérique, un fournisseur doit garantir aux utilisateurs des accès sécurisés aux
+  services distants proposés. Cette garantie de sécurité repose généralement sur le déploiement de protocoles
+  et algorithmes cryptographiques qui permettent de rendre inintelligibles - pour l'humain - les données
+  secrètes durant leur transfert ou leur stockage afin de se prémunir contre les écoutes/interceptions et
+  les fuites en cas d'intrusion. L'accès aux données claires étant réservé aux entitées 'légitimes' en
+  possession des bonnes informations cryptographiques.
+  
+  Par exemple, pour accéder à vos courriels, vous devez vous connecter sur un des serveurs distants de votre fournisseur
+  et fournir les informations d'identification enregistrées lors de la création de votre compte: *login* et *mot de passe*.
+  Après vérification de la validité des informations fournies, vous êtes authentifié(e) par le serveur et les
+  accès à la plateforme sont autorisés. Vous pouvez donc lire vos courriels!
+  Comme vous l'avez probablement bien compris, l'authentification nécessite la vérification de données secrètes
+  (le mot de passe) au niveau du serveur. Le serveur doit donc disposer d'un moyen cryptographique de vérification
+  qui permette de garantir que le mot de passe de l'utilisateur ne soit pas divulgué.
+  
+  Dans les prochaines sections, nous allons regarder de plus prêt un mécanisme de stockage et de vérification de mots de passes
+  qui fut considéré sécurisé dans le passé et qui, aujourd'hui, présente plusieurs failles majeures.
+  Surtout avec la démocratisation des capacités de calcul et les avancées en terme d'attaques.
+ 
+** Stockage et vérification des mots de passes
+   
+   Durant le processus d'enregistrement sur une plateforme à accès restreints, l'utilisateur choisit un identifiant et
+   un mot de passe. À la fin de ce processus et après validation du formulaire d'inscription, le serveur utilise des primitives
+   de hachage cryptographique (/hash functions/) pour génèrer une signature cryptographique (/hash/ ou /digest/ en anglais)
+   *unique* et *non réversible* du mot de passe avant de la stocker avec le /login/ dans la base de données d'authentification.
+   C'est cette signature qui sera utilisée pour vérifier si le mot de passe fourni est valide durant
+   une tentative d'authentification. 
+   
+   La base de données d'authentification est généralement structurée comme suit:
+
+   #+BEGIN_EXAMPLE
+
+      [index] [user_login] [user_password_hash] [user_data_entry_index]
+           1   yaspr        A98172BF...          1
+	   2   michel       8CD1628B...          29
+	   3   john         091E67F2...          1500
+	   4   toto         F891DC67...          4
+	     
+   #+END_EXAMPLE
+   
+   
+   À chaque tentative d'authentification, la base de données ci-dessus sera consultée afin de vérifier les informations
+   d'identification fournies par l'utilisateur en utilisant une routine similaire à la suivante:
+   
+   #+BEGIN_SRC c
+
+     u64 authenticate_user(authentication_table **auth_tab, ascii *user_login, u8 user_password)
+     {
+       u64 index = 0;
+
+       if ((index = lookup_user_by_login(auth_tab, user_login) != 0))
+	 {
+	   u8 *user_password_hash = hash(user_password);
+
+	   if (compare(user_password_hash, auth_tab[index]->user_password_hash) == 0)
+	     return auth_tab[index]->user_data_entry_index;
+	   else
+	     return 0; //Login failure (wrong password)
+	 }
+       else
+	 return 0; //Login failure (wrong login)
+     }
+     
+   #+END_SRC
+
+   Cette routine permet de vérifier si l'utilisateur existe dans la base de données d'authentification avant de
+   vérifier si la signature (/hash/) du mot de passe fournit est identique à celle dans la base de données. En cas d'échec,
+   cette routine retourne 0. Par contre, si les informations fournies sont valides, cette routine retourne l'index
+   de l'emplacement des données de l'utilisateur dans la base de données des données utilisateur qui sera utilisé par
+   une autre routine qui s'occupera de charger, décrypter et afficher les données utilisateur.
+   
+   À partir de cet exemple, on peut donc observer l'importance du hachage cryptographique dans la 'sécurisation' du stockage des données
+   utilisateur secrètes et de l'authentification. On peut même être amené à supposer que nous avons trouvé la solution au problème
+   et que notre système est protégé en cas de fuites. Supposition que plusieurs industriels et fournisseurs de services distants ont
+   considérée valide et qui leur a coûté, et à leurs utilisateurs, très cher par la suite.
+   
+   Malheureusement, ce schéma de stockage ne protège pas les données des attaques de type /brute-force/ basées sur un dictionnaire
+   de mots de passes ou sur des /rainbow tables/. Un attaquant avec suffisamment de resources de calcul et un dictionnaire bien élaboré
+   pourra venir à bout de plusieurs signatures en l'espace de quelques heures ou même quelques minutes. Pire encore, les mots de passes
+   similaires auront la même signature et il suffira de vérifier que la signature n'ait pas déjà été cassée, ce qui élimine tout calcul
+   redondant et accélère encore plus le processus de /brute-force/.
+   
+   L'objectif de ce projet est donc d'analyser et d'optimiser les performances de l'outil *yHashCrack* qui permet
+   de 'casser' de façon parallèle des signatures de mots de passes pour un algorithme donné (*MD5*, *SHA1*, *SHA256*, ...) en utilisant
+   un dictionnaire.
+   
+** Algorithmes de hachage
+
+   Comme cité préalablement, les algorithmes de hachage cryptographique doivent garantir l'unicité et la non réversibilité des signatures
+   générées.
+   
+   Mathématiquement, une signature unique signifie que si: /*hash(a) = hash(b)*/, alors: /*a = b*/.
+   Autrement, si: /*a != b*/ et /*hash(a) = hash(b)*/, nous parlons de collision entre /*a*/ et /*b*/.
+   La non réversibilité de la signature consiste à garantir qu'il n'existe aucune fonction inverse *hash^-1* de la fonction
+   de hachage *hash*. En d'autres termes, il devrait être impossible de retrouver /*a*/ en connaissant /*hash(a)*/:
+   /*a = hash^-1(hash(a))*/ est impossible. Les fonctions de hachage sont aussi appelées /one-way-functions/. 
+
+   Il existe plusieurs algorithmes de hachage cryptographique: *MD4, MD5, SHA1, SHA2, SHA3, CubeHash, BLAKE2,* ...
+   Chaque algorithme présente des particularités différentes: taille de la signature, procédé de mélange des bits, ...
+   qui lui permettent de garantir l'unicité et la non réversibilité des signatures générées, mais aussi une robustesse
+   contre certaines attaques: /birthday attacks/, /timing attacks/, /cache timing attacks/, ... 
+   
+   Ces algorithmes de hachage sont généralement conçus et implémentés par des cryptographes et mathématiciens issus de plusieurs entitées:
+   académiques, industrielles, militaires, surveillance et renseignement, ... et sont généralement standardisés
+   et/ou certifiés et/ou recommandés par d'autres entités tels le *NIST* aux *USA*, ou l'*ANSSI* en *France*.
+   
+   Plusieurs de ces algorithmes de hachage sont aujourd'hui considérés comme obsolètes car il a été démontré qu'ils ne
+   garantissaient plus l'unicité des signatures (existence de collisions). Par exemple, MD4, [[https://en.wikipedia.org/wiki/MD5][MD5]] et [[https://en.wikipedia.org/wiki/SHA-1][SHA1]] ne sont plus
+   recommandés pour des usages cryptographiques car des collisions peuvent être générées à volonté et avec des moyens de calcul rudimentaires.
+   
+   Pour plus d'informations, se référer à la section [[Bonus crypto]].
+
+* Comment fonctionne yHashCrack ?
+
+  Afin de casser une signature, *yHashCrack* prend en paramètres de ligne de commande les éléments suivants:
+
+  1. l'algorithme de hachage utilisé pour générer la signature cible: MD5, SHA1, SHA224, SHA256 ou SHA512
+  2. le nombre de threads à utiliser pour chercher le mot de passe dans le dictionnaire
+  3. l'emplacement du fichier dictionnaire contenant les potientiels mots de passes
+  4. la signature cible à casser
+
+  Ensuite, l'outil effectue les étapes suivantes:
+
+  1. charger un block du dictionnaire
+  2. découper le block du dictionnaire en sous-blocks et affecter à chaque sous-block un thread
+  3. chaque thread exécute une boucle qui se déplace sur chaque entrée du dictionnaire, génère son /hash/ en utilisant la fonction de hachage
+     choisie et le compare à la signature cible. Le code ci-dessous présente une implémentation du travail que doit effectuer chaque thread: 
+     
+     #+BEGIN_SRC c
+
+       u64 crack_hash(ascii **dictionary, u64 num_dictionary_entries, u8 *target_hash)
+       {
+	 for (u64 i = 1; i <= num_dictionary_entries; i++)
+	   {
+	     u8 *entry_hash = hash(dictionary[i]);
+
+	     if (compare(target_hash, hash) == 0)
+	       return i; //Password found, return position in dictionary block
+	   }
+
+	 return 0; //Password not found
+       }
+
+     #+END_SRC
+
+  4. si la signature est trouvée, le thread enregistre le mot de passe et signale avoir cassé le hash cible
+  5. si aucun des threads ne trouve de mot de passe dont la signature correspond à la cible, et si le dictionnaire n'a pas été complètement chargé,
+     retour à l'étape 1
+
+  L'outil n'implémente pas directment les primitives de hachage, il utilise la librairie *yhash* qui fournit des implémentations valides mais
+  non optimisées de: MD5, SHA1, SH224, SHA256 et SHA512.
+  
+* Travail à faire
+
+  Sur le cluster *OB-1* vous avez à votre disposition, dans le répértoire du projet  */scratch/students/users/shared/project1*:
+  
+  - le code source de *yHashCrack*
+  - le code source de la librairie *yhash*
+  - un fichier (*hashes.txt*) contenant des signatures SHA256 à cracker 
+  - un dictionnaire (*dictionary.txt*) de 4.2GB contenant 400000000 de mots de passes avec un mot de passe par ligne 
+  
+** Analyse des performances
+
+   Pour commencer, il vous faudra identifier les points chauds du programme (fonctions ou boucles) en utilisant un profileur (Linux perf, MAQAO, ...).
+   Exemple avec Linux perf:
+
+   #+BEGIN_SRC bash
+
+     $ LD_LIBRARY_PATH=./yhash perf record ./yhashcrack sha256 32 ./passwords.txt HASH
+     
+   #+END_SRC
+
+   Une fois l'exécution du programme terminée, vous pouvez consulter le rapport en utlisant la commande suivante dans le répertoire contenant
+   le fichier *perf.data*:
+
+   #+BEGIN_SRC bash
+
+     $ perf report
+     
+   #+END_SRC
+   
+   Il vous faudra aussi comprendre ce que chaque point chaud effectue comme traitement afin de l'optimiser plus tard. À vue d'oeil, les opérations les
+   plus coûteuses seront:
+   
+   - les I/Os disque pour lire le dictionnaire
+   - le hachage des mots de passes du dictionnaire
+   - la comparaison de la signature calculée avec la signature cible
+
+   Le code fournit effectue déjà une mesure des performances rudimentaire en affichant le temps de chargement du block du dictionnaire et le temps
+   qu'il a fallu pour hacher et comparer toutes les entrées du block. 
+
+   Vous devrez donc mesurer le temps qu'il faut pour casser chaque hash du fichier *hashes.txt* et optimiser en suivant les recommandations de la section
+   suivante afin de réduire ce temps.
+   
+** Optimisation
+
+   Pour optimiser l'outil, tous les coups sont permis. Il vous faudra améliorer les performances des points chauds en vous assurant que l'implémentation
+   utilisée tire profit des charactéristiques de l'architecture des noeuds de calcul à votre disposition. Par exemple, les noeuds *Haswell* disposent du jeu
+   d'instructions *AVX2* qui permet d'effectuer des opérations sur des vecteurs de 256-bits (32 octets) dont l'opération de comparaison des signatures pourrait
+   bénéficier.
+   Vous pouvez aussi remplacer les appels aux primitives de *yhash* par une autre librairie plus performante (*OpenSSL*, *NaCl*, *libsodium*, ...) ou
+   implémenter vous même une version plus optimale en assembleur. Le code qui effectue le chargement des mots de passes en mémoire (I/O) peut aussi être amélioré.
+   Comme cité avant: tous les coups sont permis. L'objectif étant de réduire le plus possible le temps qu'il faut pour casser les signatures fournies.
+   
+* Rendu
+
+  Il vous faudra fournir un rapport (au format PDF) détaillant les performances de la version fournie pour chacun des hashes du fichier *hashes.txt* et proposant des
+  améliorations basées sur les résultats obtenus. Après avoir diagnostiqué l'application et proposé vos solutions, il vous faudra fournir le code d'une
+  implémentation qui effectue les opérations nécessaires pour casser les hashes fournis de manière plus rapide que la version de base. Il vous faudra présenter
+  les résultats des performances de cette version et les comparer à ceux de la version de base afin d'évaluer le /speedup/ (ou le /slowdown/) résultant des
+  transformations du code.
+  
+  Notez que les performances de votre code seront comparées à celles d'une version optimisée par mes soins pour les noeuds Haswell du cluster.
+  Un classement des codes les plus rapides sera aussi effectué après la correction de tous les projets. L'étudiant, ou l'étudiante, dont le code présentera des
+  performances similaires ou meilleures que celles de ma version aura *20/20* en projet d'*Architectures Parallèles*.  
+  
+* Conseils
+
+  - Breathe deep and RTFM!
+    
+  - Si vous n'avez pas accès au cluster *OB-1*, assurez-vous de:
+    1. connecter votre laptop au secteur pour éviter le bruit du au *DVFS* (*Dynamic Voltage and Frequency Scaling*)
+    2. fixer la fréquence de votre CPU en utilisant la commande *cpupower* suivante:
+
+       #+BEGIN_SRC bash
+
+	 $ cpupower -c all frequency-set -g performance
+	 
+       #+END_SRC
+
+    3. assurez-vous de n'avoir aucun programme (firefox, chrome, ...) qui bruite vos mesures
+
+  - Rappelez-vous que le plus important dans un article Wikipedia, ce sont les références!
+    
+* Bonus crypto
+** Reality check & rainbow tables
+
+   Comme vous l'avez bien compris, utiliser uniquement le hash d'un mot de passe n'est pas une solution fiable pour sécuriser les informations d'une base de données
+   d'authentification et ce, pour plusieurs raisons:
+
+   - Primo, les utilisateurs ayant le même mot de passe auront le même /hash/ dans la base de données.
+   - Secundo, une attaque par dictionnaire finira tôt ou tard par casser certains hashes et permettre à un attaquant d'usurper l'identité d'utilisateurs légitimes.
+
+   Une des optimisations possibles du processus de /brute-force/ est de créer des /rainbow tables/ qui contiennent les hashes précalculés de toutes les entrées du dictionnaire. 
+   Ces tables sont généralement générées /*offline*/ et seront utilisées plus tard en cas de fuite afin de plus rapidement vérifier si les signatures des mots de passes qui ont
+   fuités ne figurent pas dedans. Cette technique permet d'éviter de calculer le hash /*online*/, c'est-à-dire au moment de la recherche, et de transformer le problème en un
+   simple /database lookup/ beaucoup plus rapide. En d'autres termes, un simple *=grep -i LEAKED_HASH rainbow_table.csv=* suffira à vérifier si un mot de passe existe
+   pour cette signature. 
+   
+   Une /rainbow table/ ressemble généralement au format suivant (CSV) avec plusieurs hashes précalculés:
+   
+   #+BEGIN_EXAMPLE
+
+     [password] [MD5 hash] [SHA1 hash] [SHA256 hash] ...
+      toto;      09A5...;   78BC...;    140B...;
+      titi;      89BB...;   D3AD...;    C0D3...;
+      ...
+      
+   #+END_EXAMPLE
+   
+   Afin de rendre le processus de /brute-force/ plus fastidieux, plusieurs techniques peuvent être mises en oeuvre. Les prochaines sections détaillent des procédés additionnels
+   de sécurisation du stockage d'informations d'authentification qui permettent de protéger contre certaines attaques par dictionnaire pré-hashés: /rainbow tables/ et rendre
+   le processus plus coûteux en terme de calcul.
+   
+** Salt
+
+   Le /salt/ est une chaîne d'octets (généralement d'une longueur entre et 16 et 64 octets) générée aléatoirement par le serveur pour chaque utilisateur au moment de la création
+   de son compte. Ce paramètre est concaténé au mot de passe saisi avant d'être passé dans une primitive de hachage (*hash(/password+salt/)*) pour générer la signature.
+   Le /salt/ est généralement stocké dans la base de données d'authentification. Ci-dessous, un exemple du format d'une base de données d'authentification introduisant un /salt/: 
+   
+   #+BEGIN_EXAMPLE
+
+      [index] [user_login] [user_salt] [user_password_hash (hash(password+salt)] [user_data_entry_index]
+           1   yaspr        kjh$a_10... B98772AE...                               1
+	   2   michel       j&8-Qg*\... 9D062139..                                29
+	   3   john         l!0p-d34... A1F67378..                                1500
+	   4   toto         18g<8091... DD61BC13...                               4
+	     
+   #+END_EXAMPLE
+
+   Ci-dessous, la routine permettant d'authentifier un utilisateur en utilisant le /salt/ (ici, le symbole + dénote la concaténation):
+   
+   #+BEGIN_SRC c
+
+     u64 authenticate_user(authentication_table **auth_tab, ascii *user_login, u8 user_password)
+     {
+       u64 index = 0;
+
+       if ((index = lookup_user_by_login(auth_tab, user_login) != 0))
+	 {
+	   u8 *user_password_hash = hash(user_password + auth_tab[index]->user_salt);
+
+	   if (compare(user_password_hash, auth_tab[index]->user_password_hash) == 0)
+	     return auth_tab[index]->user_data_entry_index;
+	   else
+	     return 0; //Login failure (wrong password)
+	 }
+       else
+	 return 0; //Login failure (wrong login)
+     }
+
+   #+END_SRC
+
+   Comme vous l'avez probablement déduit, le rajout du /salt/ permet de randomiser la signature pour chaque utilisateur évitant ainsi d'avoir la même signature pour
+   des utilisateurs ayant le même mot de passe. Cette solution permet aussi de rendre obsolète tout précalcul de signatures d'un dictionnaire, l'attaquant ne
+   disposant pas des /salts/ à l'avance. Ceci dit, cette solution reste toujours imparfaite face à la puissance de calcul disponible aujourd'hui. En réalité, lorsqu'une base
+   de données d'authentification fuite, les /salts/ des utilisateurs ainsi que leurs hashes associés sont à la disposition de l'attaquant.
+   Il lui suffit donc de revenir à un modèle d'attaque /online/ en utilisant plus de puissance de calcul (des GPUs ou FPGAs par exemple) pour réussir à casser certains mots
+   de passes en utilisant un dictionnaire. 
+   
+** Salt + pepper
+
+   Le /salt/ n'étant pas suffisant à rendre la tâche impossible à un attaquant déterminé, le /pepper/ fut introduit pour ralentir encore plus les calculs de hashes en masse.
+   Le /pepper/ est lui aussi une chaîne aléatoire d'octets générée par le serveur et qui permet de randomiser encore plus la signature produite par la fonction de hachage mais qui
+   rajoute en plus une charge de calcul non négligeable. Si le /salt/ est entièrement concaténé au mot de passe saisi, seulement un caractère du /pepper/ sera aléatoirement choisi
+   pour être concaténé au /salt/ et au mot de passe avant de générer une signature (*hash(/password+salt+pepper[?]/)*).
+
+   Ci-dessous, un exemple d'une base de données intégrant le /salt/ ainsi que le /pepper/:
+   
+   #+BEGIN_EXAMPLE
+
+      [index] [user_login] [user_salt] [user_pepper ] [user_password_hash hash(password+salt+pepper[?])] [user_data_entry_index]
+           1   yaspr        kjh$a_10... $)98AZ...      C79072BC...                                        1
+	   2   michel       j&8-Qg*\... 91@_1e...      E0012148..                                         29
+	   3   john         l!0p-d34... %k~-\x...      81B68181..                                         1500
+	   4   toto         18g<8091... l007&m...      01B1DC03...                                        4
+	     
+   #+END_EXAMPLE
+
+   Ci-dessous, la routine permettant d'authentifier un utilisateur en prenant en compte le /salt/ et le /pepper/ (ici, le symbole + dénote la concaténation):
+   
+   #+BEGIN_SRC c
+
+     u64 authenticate_user(authentication_table **auth_tab, ascii *user_login, u8 user_password)
+     {
+       u8  found = 0;
+       u64 index = 0;
+
+       if ((index = lookup_user_by_login(auth_tab, user_login) != 0))
+	 {
+	   for (u64 i = 0; !found && i < auth_tab[index]->pepper_length; i++)
+	     {
+	       u8 *user_password__hash = hash(user_password + auth_tab[index]->user_salt + auth_tab[index]->user_pepper[i]);
+
+	       if (compare(user_password_hash, auth_tab[index]->user_password_hash) == 0)
+		 found = 1;
+	     }
+
+	   if (found)
+	     return auth_tab[index]->user_data_entry_index;
+	   else
+	     return 0; //Login failure (wrong password)
+	 }
+       else
+	 return 0; //Login failure (wrong login)
+     }
+
+   #+END_SRC
+
+   Comme vous pouvez le constater, casser des hashes qui ont été agrémentés de /salt/ et de /pepper/ n'est toujours pas une tâche impossible mais
+   elle nécessitera un temps bien plus important et une puissance de calcul non négligeable.
+   
+** Autres techniques de stockage
+
+   Il existe d'autres schémas de hachage de mots de passes sécurisés qui offrent la possibilité de définir plusieurs paramètres de robustesse.
+   Par exemple, *OpenBSD*, ainsi que plusieurs distributions *Linux*, utilisent [[https://en.wikipedia.org/wiki/Bcrypt][bcrypt]] (parfois [[https://en.wikipedia.org/wiki/Scrypt][scrypt]]) afin de hacher les mots de passes et les protéger contre des
+   attaques de type /brute-force/. La fonction *bcrypt* prend en paramètre un mot de passe (/password/), un coût (/c/) et un /salt/ (/s/), puis
+   génère une signature en utilisant une variante de l'algorithme de chiffrement [[https://en.wikipedia.org/wiki/Blowfish_(cipher)][BlowFish]] répété /2^c/ fois. C'est cette répétition paramétrable qui
+   offre donc une certaine robustesse contre les attaques de type /brute-force/ en rajoutant une charge de calcul importante: plusieurs milliers d'itérations
+   interdépendentes qui appliquent une fonction de hachage de façon cyclique à chaque sortie.
+   
+   D'autres fonctions, par exemple *scrypt*, prennent en compte d'autres paramètres additionnels - comme l'empreinte mémoire - afin de rendre
+   fastidieuse et très coûteuse la conception de circuits (/hardware/) spécialisés dans l'attaque de leurs signatures.
+   
+   Un autre algorithme, *Argon2*, fut le gagnant de la *Password Hashing Competition* (https://www.password-hashing.net/) organisée en 2013 pour sélectionner la méthode
+   de stockage la plus sécurisée et la plus robuste contre des attaques de type /brute-force/ variées. *Argon2* utilise l'algorithme de hachage *BLAKE2* et prend en paramètres:
+
+   - le temps d'exécution (/time cost/)
+   - la consommation mémoire (/memory cost/)
+   - le degré de parallélisme (/parallelism/) 
+
+   Ces paramètres permettent à l'utilisateur de choisir la charge de travail adaptée à ses besoins. *Argon2* vient sous la forme de deux versions:
+
+   - Argon2i : robuste contre les attaques par cannal auxiliaire (/side-channel attacks/)
+   - Argon2d : plus robuste contre les attaques de type /brute-force/ utilisant des GPUs ou autres accélérateurs
+   
+   Pour plus d'informations sur le sujet, vous pouvez consulter les articles Wikipedia suivants:
+
+   - [[https://en.wikipedia.org/wiki/PBKDF2][PBKDF2]]
+   - [[https://en.wikipedia.org/wiki/Argon2][Argon2]]
+
+** Comment chosir un mot de passe sécurisé?
+
+   La robustesse d'un mot de passe dépend principalement de son imprédictibilité et donc de l'entropie des bits qui le constituent. L'entropie d'un mot de passe dépend de sa
+   longueur et de la diversité des caractères utilisés et elle est exprimée comme suit: /H = log_2(N^L)/, avec /N/ représentant le nombre de symboles/caractères
+   uniques pouvant constituer la chaîne et /L/ sa longueur. 
+   
+   En général, on se base sur les intervalles ci-dessous pour définir la robustesse d'un mot de passe:
+   
+   1.   0 -  28 bits: Niveau très faible
+   2.  28 -  35 bits: Niveau faible
+   3.  36 -  59 bits: Niveu raisonnable
+   4.  60 - 127 bits: Robuste
+   5. 128 - +oo bits: Très robuste
+   
+   Par exemple, pour la chaîne de caractères suivante: *=F(x)=Sin(2*x)-Cos(x*x)=*, l'entropie est de: 98.10 bits. On peut donc conclure que cette chaîne de caractères pourrait
+   être utilisée comme un mot de passe robuste.
+   
+   Cette métrique n'est malheureusement pas fiable à elle seule. Par exemple,l'entropie de la chaîne suivante: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaa', est de 134.6 bits.
+   Comme vous l'avez bien compris, cette métrique n'est pas automatique. Pour garantir qu'un mot de passe est robuste, il faudra donc respecter des règles strictes liées à la
+   longueur (au moins 13 caractères) ainsi que pour la diversité des caractères utilisés: minuscules, majuscules, symboles divers, ...
+   
+** Sécurité et comparaison des primitives
+
+   - https://en.wikipedia.org/wiki/Hash_function_security_summary
+   - https://en.wikipedia.org/wiki/Comparison_of_cryptographic_hash_functions
+     
+* Références
+
+  - https://www.rfc-editor.org/rfc/rfc6234 
+  - Secure Hash Standard: https://csrc.nist.gov/files/pubs/fips/180-2/final/docs/fips180-2.pdf

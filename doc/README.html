@@ -1,0 +1,849 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<!-- 2024-01-08 Mon 11:46 -->
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Analyse des performances et optimisation d'un outil pour casser des signatures de mots de passes</title>
+<meta name="author" content="yaspr" />
+<meta name="generator" content="Org Mode" />
+<style>
+  #content { max-width: 60em; margin: auto; }
+  .title  { text-align: center;
+             margin-bottom: .2em; }
+  .subtitle { text-align: center;
+              font-size: medium;
+              font-weight: bold;
+              margin-top:0; }
+  .todo   { font-family: monospace; color: red; }
+  .done   { font-family: monospace; color: green; }
+  .priority { font-family: monospace; color: orange; }
+  .tag    { background-color: #eee; font-family: monospace;
+            padding: 2px; font-size: 80%; font-weight: normal; }
+  .timestamp { color: #bebebe; }
+  .timestamp-kwd { color: #5f9ea0; }
+  .org-right  { margin-left: auto; margin-right: 0px;  text-align: right; }
+  .org-left   { margin-left: 0px;  margin-right: auto; text-align: left; }
+  .org-center { margin-left: auto; margin-right: auto; text-align: center; }
+  .underline { text-decoration: underline; }
+  #postamble p, #preamble p { font-size: 90%; margin: .2em; }
+  p.verse { margin-left: 3%; }
+  pre {
+    border: 1px solid #e6e6e6;
+    border-radius: 3px;
+    background-color: #f2f2f2;
+    padding: 8pt;
+    font-family: monospace;
+    overflow: auto;
+    margin: 1.2em;
+  }
+  pre.src {
+    position: relative;
+    overflow: auto;
+  }
+  pre.src:before {
+    display: none;
+    position: absolute;
+    top: -8px;
+    right: 12px;
+    padding: 3px;
+    color: #555;
+    background-color: #f2f2f299;
+  }
+  pre.src:hover:before { display: inline; margin-top: 14px;}
+  /* Languages per Org manual */
+  pre.src-asymptote:before { content: 'Asymptote'; }
+  pre.src-awk:before { content: 'Awk'; }
+  pre.src-authinfo::before { content: 'Authinfo'; }
+  pre.src-C:before { content: 'C'; }
+  /* pre.src-C++ doesn't work in CSS */
+  pre.src-clojure:before { content: 'Clojure'; }
+  pre.src-css:before { content: 'CSS'; }
+  pre.src-D:before { content: 'D'; }
+  pre.src-ditaa:before { content: 'ditaa'; }
+  pre.src-dot:before { content: 'Graphviz'; }
+  pre.src-calc:before { content: 'Emacs Calc'; }
+  pre.src-emacs-lisp:before { content: 'Emacs Lisp'; }
+  pre.src-fortran:before { content: 'Fortran'; }
+  pre.src-gnuplot:before { content: 'gnuplot'; }
+  pre.src-haskell:before { content: 'Haskell'; }
+  pre.src-hledger:before { content: 'hledger'; }
+  pre.src-java:before { content: 'Java'; }
+  pre.src-js:before { content: 'Javascript'; }
+  pre.src-latex:before { content: 'LaTeX'; }
+  pre.src-ledger:before { content: 'Ledger'; }
+  pre.src-lisp:before { content: 'Lisp'; }
+  pre.src-lilypond:before { content: 'Lilypond'; }
+  pre.src-lua:before { content: 'Lua'; }
+  pre.src-matlab:before { content: 'MATLAB'; }
+  pre.src-mscgen:before { content: 'Mscgen'; }
+  pre.src-ocaml:before { content: 'Objective Caml'; }
+  pre.src-octave:before { content: 'Octave'; }
+  pre.src-org:before { content: 'Org mode'; }
+  pre.src-oz:before { content: 'OZ'; }
+  pre.src-plantuml:before { content: 'Plantuml'; }
+  pre.src-processing:before { content: 'Processing.js'; }
+  pre.src-python:before { content: 'Python'; }
+  pre.src-R:before { content: 'R'; }
+  pre.src-ruby:before { content: 'Ruby'; }
+  pre.src-sass:before { content: 'Sass'; }
+  pre.src-scheme:before { content: 'Scheme'; }
+  pre.src-screen:before { content: 'Gnu Screen'; }
+  pre.src-sed:before { content: 'Sed'; }
+  pre.src-sh:before { content: 'shell'; }
+  pre.src-sql:before { content: 'SQL'; }
+  pre.src-sqlite:before { content: 'SQLite'; }
+  /* additional languages in org.el's org-babel-load-languages alist */
+  pre.src-forth:before { content: 'Forth'; }
+  pre.src-io:before { content: 'IO'; }
+  pre.src-J:before { content: 'J'; }
+  pre.src-makefile:before { content: 'Makefile'; }
+  pre.src-maxima:before { content: 'Maxima'; }
+  pre.src-perl:before { content: 'Perl'; }
+  pre.src-picolisp:before { content: 'Pico Lisp'; }
+  pre.src-scala:before { content: 'Scala'; }
+  pre.src-shell:before { content: 'Shell Script'; }
+  pre.src-ebnf2ps:before { content: 'ebfn2ps'; }
+  /* additional language identifiers per "defun org-babel-execute"
+       in ob-*.el */
+  pre.src-cpp:before  { content: 'C++'; }
+  pre.src-abc:before  { content: 'ABC'; }
+  pre.src-coq:before  { content: 'Coq'; }
+  pre.src-groovy:before  { content: 'Groovy'; }
+  /* additional language identifiers from org-babel-shell-names in
+     ob-shell.el: ob-shell is the only babel language using a lambda to put
+     the execution function name together. */
+  pre.src-bash:before  { content: 'bash'; }
+  pre.src-csh:before  { content: 'csh'; }
+  pre.src-ash:before  { content: 'ash'; }
+  pre.src-dash:before  { content: 'dash'; }
+  pre.src-ksh:before  { content: 'ksh'; }
+  pre.src-mksh:before  { content: 'mksh'; }
+  pre.src-posh:before  { content: 'posh'; }
+  /* Additional Emacs modes also supported by the LaTeX listings package */
+  pre.src-ada:before { content: 'Ada'; }
+  pre.src-asm:before { content: 'Assembler'; }
+  pre.src-caml:before { content: 'Caml'; }
+  pre.src-delphi:before { content: 'Delphi'; }
+  pre.src-html:before { content: 'HTML'; }
+  pre.src-idl:before { content: 'IDL'; }
+  pre.src-mercury:before { content: 'Mercury'; }
+  pre.src-metapost:before { content: 'MetaPost'; }
+  pre.src-modula-2:before { content: 'Modula-2'; }
+  pre.src-pascal:before { content: 'Pascal'; }
+  pre.src-ps:before { content: 'PostScript'; }
+  pre.src-prolog:before { content: 'Prolog'; }
+  pre.src-simula:before { content: 'Simula'; }
+  pre.src-tcl:before { content: 'tcl'; }
+  pre.src-tex:before { content: 'TeX'; }
+  pre.src-plain-tex:before { content: 'Plain TeX'; }
+  pre.src-verilog:before { content: 'Verilog'; }
+  pre.src-vhdl:before { content: 'VHDL'; }
+  pre.src-xml:before { content: 'XML'; }
+  pre.src-nxml:before { content: 'XML'; }
+  /* add a generic configuration mode; LaTeX export needs an additional
+     (add-to-list 'org-latex-listings-langs '(conf " ")) in .emacs */
+  pre.src-conf:before { content: 'Configuration File'; }
+
+  table { border-collapse:collapse; }
+  caption.t-above { caption-side: top; }
+  caption.t-bottom { caption-side: bottom; }
+  td, th { vertical-align:top;  }
+  th.org-right  { text-align: center;  }
+  th.org-left   { text-align: center;   }
+  th.org-center { text-align: center; }
+  td.org-right  { text-align: right;  }
+  td.org-left   { text-align: left;   }
+  td.org-center { text-align: center; }
+  dt { font-weight: bold; }
+  .footpara { display: inline; }
+  .footdef  { margin-bottom: 1em; }
+  .figure { padding: 1em; }
+  .figure p { text-align: center; }
+  .equation-container {
+    display: table;
+    text-align: center;
+    width: 100%;
+  }
+  .equation {
+    vertical-align: middle;
+  }
+  .equation-label {
+    display: table-cell;
+    text-align: right;
+    vertical-align: middle;
+  }
+  .inlinetask {
+    padding: 10px;
+    border: 2px solid gray;
+    margin: 10px;
+    background: #ffffcc;
+  }
+  #org-div-home-and-up
+   { text-align: right; font-size: 70%; white-space: nowrap; }
+  textarea { overflow-x: auto; }
+  .linenr { font-size: smaller }
+  .code-highlighted { background-color: #ffff00; }
+  .org-info-js_info-navigation { border-style: none; }
+  #org-info-js_console-label
+    { font-size: 10px; font-weight: bold; white-space: nowrap; }
+  .org-info-js_search-highlight
+    { background-color: #ffff00; color: #000000; font-weight: bold; }
+  .org-svg { }
+</style>
+</head>
+<body>
+<div id="content" class="content">
+<h1 class="title">Analyse des performances et optimisation d'un outil pour casser des signatures de mots de passes</h1>
+<div id="table-of-contents" role="doc-toc">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents" role="doc-toc">
+<ul>
+<li><a href="#orgfe32c69">1. Introduction</a>
+<ul>
+<li><a href="#orgefac4f7">1.1. Stockage et vérification des mots de passes</a></li>
+<li><a href="#org119a143">1.2. Algorithmes de hachage</a></li>
+</ul>
+</li>
+<li><a href="#org7a7fd1f">2. Comment fonctionne yHashCrack ?</a></li>
+<li><a href="#org1f8ccb4">3. Travail à faire</a>
+<ul>
+<li><a href="#org03c9a11">3.1. Analyse des performances</a></li>
+<li><a href="#org8691d73">3.2. Optimisation</a></li>
+</ul>
+</li>
+<li><a href="#org629a16f">4. Rendu</a></li>
+<li><a href="#org2faef44">5. Conseils</a></li>
+<li><a href="#org908c7dd">6. Bonus crypto</a>
+<ul>
+<li><a href="#orga080e89">6.1. Reality check &amp; rainbow tables</a></li>
+<li><a href="#orga29eca9">6.2. Salt</a></li>
+<li><a href="#org60f3fb1">6.3. Salt + pepper</a></li>
+<li><a href="#orgb2d00a8">6.4. Autres techniques de stockage</a></li>
+<li><a href="#orgc3de268">6.5. Comment chosir un mot de passe sécurisé?</a></li>
+<li><a href="#org54677a2">6.6. Sécurité et comparaison des primitives</a></li>
+</ul>
+</li>
+<li><a href="#org4125ee9">7. Références</a></li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-orgfe32c69" class="outline-2">
+<h2 id="orgfe32c69"><span class="section-number-2">1.</span> Introduction</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+Dans le monde du service numérique, un fournisseur doit garantir aux utilisateurs des accès sécurisés aux
+services distants proposés. Cette garantie de sécurité repose généralement sur le déploiement de protocoles
+et algorithmes cryptographiques qui permettent de rendre inintelligibles - pour l'humain - les données
+secrètes durant leur transfert ou leur stockage afin de se prémunir contre les écoutes/interceptions et
+les fuites en cas d'intrusion. L'accès aux données claires étant réservé aux entitées 'légitimes' en
+possession des bonnes informations cryptographiques.
+</p>
+
+<p>
+Par exemple, pour accéder à vos courriels, vous devez vous connecter sur un des serveurs distants de votre fournisseur
+et fournir les informations d'identification enregistrées lors de la création de votre compte: <b>login</b> et <b>mot de passe</b>.
+Après vérification de la validité des informations fournies, vous êtes authentifié(e) par le serveur et les
+accès à la plateforme sont autorisés. Vous pouvez donc lire vos courriels!
+Comme vous l'avez probablement bien compris, l'authentification nécessite la vérification de données secrètes
+(le mot de passe) au niveau du serveur. Le serveur doit donc disposer d'un moyen cryptographique de vérification
+qui permette de garantir que le mot de passe de l'utilisateur ne soit pas divulgué.
+</p>
+
+<p>
+Dans les prochaines sections, nous allons regarder de plus prêt un mécanisme de stockage et de vérification de mots de passes
+qui fut considéré sécurisé dans le passé et qui, aujourd'hui, présente plusieurs failles majeures.
+Surtout avec la démocratisation des capacités de calcul et les avancées en terme d'attaques.
+</p>
+</div>
+
+<div id="outline-container-orgefac4f7" class="outline-3">
+<h3 id="orgefac4f7"><span class="section-number-3">1.1.</span> Stockage et vérification des mots de passes</h3>
+<div class="outline-text-3" id="text-1-1">
+<p>
+Durant le processus d'enregistrement sur une plateforme à accès restreints, l'utilisateur choisit un identifiant et
+un mot de passe. À la fin de ce processus et après validation du formulaire d'inscription, le serveur utilise des primitives
+de hachage cryptographique (<i>hash functions</i>) pour génèrer une signature cryptographique (<i>hash</i> ou <i>digest</i> en anglais)
+<b>unique</b> et <b>non réversible</b> du mot de passe avant de la stocker avec le <i>login</i> dans la base de données d'authentification.
+C'est cette signature qui sera utilisée pour vérifier si le mot de passe fourni est valide durant
+une tentative d'authentification. 
+</p>
+
+<p>
+La base de données d'authentification est généralement structurée comme suit:
+</p>
+
+<pre class="example" id="org7305a77">
+
+[index] [user_login] [user_password_hash] [user_data_entry_index]
+     1   yaspr        A98172BF...          1
+     2   michel       8CD1628B...          29
+     3   john         091E67F2...          1500
+     4   toto         F891DC67...          4
+
+</pre>
+
+
+<p>
+À chaque tentative d'authentification, la base de données ci-dessus sera consultée afin de vérifier les informations
+d'identification fournies par l'utilisateur en utilisant une routine similaire à la suivante:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-c">
+u64 authenticate_user(authentication_table **auth_tab, ascii *user_login, u8 user_password)
+{
+  u64 index = 0;
+
+  if ((index = lookup_user_by_login(auth_tab, user_login) != 0))
+    {
+      u8 *user_password_hash = hash(user_password);
+
+      if (compare(user_password_hash, auth_tab[index]-&gt;user_password_hash) == 0)
+        return auth_tab[index]-&gt;user_data_entry_index;
+      else
+        return 0; //Login failure (wrong password)
+    }
+  else
+    return 0; //Login failure (wrong login)
+}
+
+</pre>
+</div>
+
+<p>
+Cette routine permet de vérifier si l'utilisateur existe dans la base de données d'authentification avant de
+vérifier si la signature (<i>hash</i>) du mot de passe fournit est identique à celle dans la base de données. En cas d'échec,
+cette routine retourne 0. Par contre, si les informations fournies sont valides, cette routine retourne l'index
+de l'emplacement des données de l'utilisateur dans la base de données des données utilisateur qui sera utilisé par
+une autre routine qui s'occupera de charger, décrypter et afficher les données utilisateur.
+</p>
+
+<p>
+À partir de cet exemple, on peut donc observer l'importance du hachage cryptographique dans la 'sécurisation' du stockage des données
+utilisateur secrètes et de l'authentification. On peut même être amené à supposer que nous avons trouvé la solution au problème
+et que notre système est protégé en cas de fuites. Supposition que plusieurs industriels et fournisseurs de services distants ont
+considérée valide et qui leur a coûté, et à leurs utilisateurs, très cher par la suite.
+</p>
+
+<p>
+Malheureusement, ce schéma de stockage ne protège pas les données des attaques de type <i>brute-force</i> basées sur un dictionnaire
+de mots de passes ou sur des <i>rainbow tables</i>. Un attaquant avec suffisamment de resources de calcul et un dictionnaire bien élaboré
+pourra venir à bout de plusieurs signatures en l'espace de quelques heures ou même quelques minutes. Pire encore, les mots de passes
+similaires auront la même signature et il suffira de vérifier que la signature n'ait pas déjà été cassée, ce qui élimine tout calcul
+redondant et accélère encore plus le processus de <i>brute-force</i>.
+</p>
+
+<p>
+L'objectif de ce projet est donc d'analyser et d'optimiser les performances de l'outil <b>yHashCrack</b> qui permet
+de 'casser' de façon parallèle des signatures de mots de passes pour un algorithme donné (<b>MD5</b>, <b>SHA1</b>, <b>SHA256</b>, &#x2026;) en utilisant
+un dictionnaire.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org119a143" class="outline-3">
+<h3 id="org119a143"><span class="section-number-3">1.2.</span> Algorithmes de hachage</h3>
+<div class="outline-text-3" id="text-1-2">
+<p>
+Comme cité préalablement, les algorithmes de hachage cryptographique doivent garantir l'unicité et la non réversibilité des signatures
+générées.
+</p>
+
+<p>
+Mathématiquement, une signature unique signifie que si: <i><b>hash(a) = hash(b)</b></i>, alors: <i><b>a = b</b></i>.
+Autrement, si: <i><b>a != b</b></i> et <i><b>hash(a) = hash(b)</b></i>, nous parlons de collision entre <i><b>a</b></i> et <i><b>b</b></i>.
+La non réversibilité de la signature consiste à garantir qu'il n'existe aucune fonction inverse <b>hash<sup>-1</sup></b> de la fonction
+de hachage <b>hash</b>. En d'autres termes, il devrait être impossible de retrouver <i><b>a</b></i> en connaissant <i><b>hash(a)</b></i>:
+<i><b>a = hash<sup>-1</sup>(hash(a))</b></i> est impossible. Les fonctions de hachage sont aussi appelées <i>one-way-functions</i>. 
+</p>
+
+<p>
+Il existe plusieurs algorithmes de hachage cryptographique: <b>MD4, MD5, SHA1, SHA2, SHA3, CubeHash, BLAKE2,</b> &#x2026;
+Chaque algorithme présente des particularités différentes: taille de la signature, procédé de mélange des bits, &#x2026;
+qui lui permettent de garantir l'unicité et la non réversibilité des signatures générées, mais aussi une robustesse
+contre certaines attaques: <i>birthday attacks</i>, <i>timing attacks</i>, <i>cache timing attacks</i>, &#x2026; 
+</p>
+
+<p>
+Ces algorithmes de hachage sont généralement conçus et implémentés par des cryptographes et mathématiciens issus de plusieurs entitées:
+académiques, industrielles, militaires, surveillance et renseignement, &#x2026; et sont généralement standardisés
+et/ou certifiés et/ou recommandés par d'autres entités tels le <b>NIST</b> aux <b>USA</b>, ou l'<b>ANSSI</b> en <b>France</b>.
+</p>
+
+<p>
+Plusieurs de ces algorithmes de hachage sont aujourd'hui considérés comme obsolètes car il a été démontré qu'ils ne
+garantissaient plus l'unicité des signatures (existence de collisions). Par exemple, MD4, <a href="https://en.wikipedia.org/wiki/MD5">MD5</a> et <a href="https://en.wikipedia.org/wiki/SHA-1">SHA1</a> ne sont plus
+recommandés pour des usages cryptographiques car des collisions peuvent être générées à volonté et avec des moyens de calcul rudimentaires.
+</p>
+
+<p>
+Pour plus d'informations, se référer à la section <a href="#org908c7dd">6</a>.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org7a7fd1f" class="outline-2">
+<h2 id="org7a7fd1f"><span class="section-number-2">2.</span> Comment fonctionne yHashCrack ?</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+Afin de casser une signature, <b>yHashCrack</b> prend en paramètres de ligne de commande les éléments suivants:
+</p>
+
+<ol class="org-ol">
+<li>l'algorithme de hachage utilisé pour générer la signature cible: MD5, SHA1, SHA224, SHA256 ou SHA512</li>
+<li>le nombre de threads à utiliser pour chercher le mot de passe dans le dictionnaire</li>
+<li>l'emplacement du fichier dictionnaire contenant les potientiels mots de passes</li>
+<li>la signature cible à casser</li>
+</ol>
+
+<p>
+Ensuite, l'outil effectue les étapes suivantes:
+</p>
+
+<ol class="org-ol">
+<li>charger un block du dictionnaire</li>
+<li>découper le block du dictionnaire en sous-blocks et affecter à chaque sous-block un thread</li>
+<li><p>
+chaque thread exécute une boucle qui se déplace sur chaque entrée du dictionnaire, génère son <i>hash</i> en utilisant la fonction de hachage
+choisie et le compare à la signature cible. Le code ci-dessous présente une implémentation du travail que doit effectuer chaque thread: 
+</p>
+
+<div class="org-src-container">
+<pre class="src src-c">
+u64 crack_hash(ascii **dictionary, u64 num_dictionary_entries, u8 *target_hash)
+{
+  for (u64 i = 1; i &lt;= num_dictionary_entries; i++)
+    {
+      u8 *entry_hash = hash(dictionary[i]);
+
+      if (compare(target_hash, hash) == 0)
+        return i; //Password found, return position in dictionary block
+    }
+
+  return 0; //Password not found
+}
+
+</pre>
+</div></li>
+
+<li>si la signature est trouvée, le thread enregistre le mot de passe et signale avoir cassé le hash cible</li>
+<li>si aucun des threads ne trouve de mot de passe dont la signature correspond à la cible, et si le dictionnaire n'a pas été complètement chargé,
+retour à l'étape 1</li>
+</ol>
+
+<p>
+L'outil n'implémente pas directment les primitives de hachage, il utilise la librairie <b>yhash</b> qui fournit des implémentations valides mais
+non optimisées de: MD5, SHA1, SH224, SHA256 et SHA512.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org1f8ccb4" class="outline-2">
+<h2 id="org1f8ccb4"><span class="section-number-2">3.</span> Travail à faire</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+Sur le cluster <b>OB-1</b> vous avez à votre disposition, dans le répértoire du projet  <b>/scratch/students/users/shared/project1</b>:
+</p>
+
+<ul class="org-ul">
+<li>le code source de <b>yHashCrack</b></li>
+<li>le code source de la librairie <b>yhash</b></li>
+<li>un fichier (<b>hashes.txt</b>) contenant des signatures SHA256 à cracker</li>
+<li>un dictionnaire (<b>dictionary.txt</b>) de 4.2GB contenant 400000000 de mots de passes avec un mot de passe par ligne</li>
+</ul>
+</div>
+
+<div id="outline-container-org03c9a11" class="outline-3">
+<h3 id="org03c9a11"><span class="section-number-3">3.1.</span> Analyse des performances</h3>
+<div class="outline-text-3" id="text-3-1">
+<p>
+Pour commencer, il vous faudra identifier les points chauds du programme (fonctions ou boucles) en utilisant un profileur (Linux perf, MAQAO, &#x2026;).
+Exemple avec Linux perf:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-bash">
+$ LD_LIBRARY_PATH=./yhash perf record ./yhashcrack sha256 32 ./passwords.txt HASH
+
+</pre>
+</div>
+
+<p>
+Une fois l'exécution du programme terminée, vous pouvez consulter le rapport en utlisant la commande suivante dans le répertoire contenant
+le fichier <b>perf.data</b>:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-bash">
+$ perf report
+
+</pre>
+</div>
+
+<p>
+Il vous faudra aussi comprendre ce que chaque point chaud effectue comme traitement afin de l'optimiser plus tard. À vue d'oeil, les opérations les
+plus coûteuses seront:
+</p>
+
+<ul class="org-ul">
+<li>les I/Os disque pour lire le dictionnaire</li>
+<li>le hachage des mots de passes du dictionnaire</li>
+<li>la comparaison de la signature calculée avec la signature cible</li>
+</ul>
+
+<p>
+Le code fournit effectue déjà une mesure des performances rudimentaire en affichant le temps de chargement du block du dictionnaire et le temps
+qu'il a fallu pour hacher et comparer toutes les entrées du block. 
+</p>
+
+<p>
+Vous devrez donc mesurer le temps qu'il faut pour casser chaque hash du fichier <b>hashes.txt</b> et optimiser en suivant les recommandations de la section
+suivante afin de réduire ce temps.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org8691d73" class="outline-3">
+<h3 id="org8691d73"><span class="section-number-3">3.2.</span> Optimisation</h3>
+<div class="outline-text-3" id="text-3-2">
+<p>
+Pour optimiser l'outil, tous les coups sont permis. Il vous faudra améliorer les performances des points chauds en vous assurant que l'implémentation
+utilisée tire profit des charactéristiques de l'architecture des noeuds de calcul à votre disposition. Par exemple, les noeuds <b>Haswell</b> disposent du jeu
+d'instructions <b>AVX2</b> qui permet d'effectuer des opérations sur des vecteurs de 256-bits (32 octets) dont l'opération de comparaison des signatures pourrait
+bénéficier.
+Vous pouvez aussi remplacer les appels aux primitives de <b>yhash</b> par une autre librairie plus performante (<b>OpenSSL</b>, <b>NaCl</b>, <b>libsodium</b>, &#x2026;) ou
+implémenter vous même une version plus optimale en assembleur. Le code qui effectue le chargement des mots de passes en mémoire (I/O) peut aussi être amélioré.
+Comme cité avant: tous les coups sont permis. L'objectif étant de réduire le plus possible le temps qu'il faut pour casser les signatures fournies.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org629a16f" class="outline-2">
+<h2 id="org629a16f"><span class="section-number-2">4.</span> Rendu</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+Il vous faudra fournir un rapport (au format PDF) détaillant les performances de la version fournie pour chacun des hashes du fichier <b>hashes.txt</b> et proposant des
+améliorations basées sur les résultats obtenus. Après avoir diagnostiqué l'application et proposé vos solutions, il vous faudra fournir le code d'une
+implémentation qui effectue les opérations nécessaires pour casser les hashes fournis de manière plus rapide que la version de base. Il vous faudra présenter
+les résultats des performances de cette version et les comparer à ceux de la version de base afin d'évaluer le <i>speedup</i> (ou le <i>slowdown</i>) résultant des
+transformations du code.
+</p>
+
+<p>
+Notez que les performances de votre code seront comparées à celles d'une version optimisée par mes soins pour les noeuds Haswell du cluster.
+Un classement des codes les plus rapides sera aussi effectué après la correction de tous les projets. L'étudiant, ou l'étudiante, dont le code présentera des
+performances similaires ou meilleures que celles de ma version aura <b>20/20</b> en projet d'<b>Architectures Parallèles</b>.  
+</p>
+</div>
+</div>
+
+<div id="outline-container-org2faef44" class="outline-2">
+<h2 id="org2faef44"><span class="section-number-2">5.</span> Conseils</h2>
+<div class="outline-text-2" id="text-5">
+<ul class="org-ul">
+<li>Breathe deep and RTFM!</li>
+
+<li>Si vous n'avez pas accès au cluster <b>OB-1</b>, assurez-vous de:
+<ol class="org-ol">
+<li>connecter votre laptop au secteur pour éviter le bruit du au <b>DVFS</b> (<b>Dynamic Voltage and Frequency Scaling</b>)</li>
+<li><p>
+fixer la fréquence de votre CPU en utilisant la commande <b>cpupower</b> suivante:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-bash">
+$ cpupower -c all frequency-set -g performance
+
+</pre>
+</div></li>
+
+<li>assurez-vous de n'avoir aucun programme (firefox, chrome, &#x2026;) qui bruite vos mesures</li>
+</ol></li>
+
+<li>Rappelez-vous que le plus important dans un article Wikipedia, ce sont les références!</li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-org908c7dd" class="outline-2">
+<h2 id="org908c7dd"><span class="section-number-2">6.</span> Bonus crypto</h2>
+<div class="outline-text-2" id="text-6">
+</div>
+<div id="outline-container-orga080e89" class="outline-3">
+<h3 id="orga080e89"><span class="section-number-3">6.1.</span> Reality check &amp; rainbow tables</h3>
+<div class="outline-text-3" id="text-6-1">
+<p>
+Comme vous l'avez bien compris, utiliser uniquement le hash d'un mot de passe n'est pas une solution fiable pour sécuriser les informations d'une base de données
+d'authentification et ce, pour plusieurs raisons:
+</p>
+
+<ul class="org-ul">
+<li>Primo, les utilisateurs ayant le même mot de passe auront le même <i>hash</i> dans la base de données.</li>
+<li>Secundo, une attaque par dictionnaire finira tôt ou tard par casser certains hashes et permettre à un attaquant d'usurper l'identité d'utilisateurs légitimes.</li>
+</ul>
+
+<p>
+Une des optimisations possibles du processus de <i>brute-force</i> est de créer des <i>rainbow tables</i> qui contiennent les hashes précalculés de toutes les entrées du dictionnaire. 
+Ces tables sont généralement générées <i><b>offline</b></i> et seront utilisées plus tard en cas de fuite afin de plus rapidement vérifier si les signatures des mots de passes qui ont
+fuités ne figurent pas dedans. Cette technique permet d'éviter de calculer le hash <i><b>online</b></i>, c'est-à-dire au moment de la recherche, et de transformer le problème en un
+simple <i>database lookup</i> beaucoup plus rapide. En d'autres termes, un simple <b><code>grep -i LEAKED_HASH rainbow_table.csv</code></b> suffira à vérifier si un mot de passe existe
+pour cette signature. 
+</p>
+
+<p>
+Une <i>rainbow table</i> ressemble généralement au format suivant (CSV) avec plusieurs hashes précalculés:
+</p>
+
+<pre class="example" id="orge4538e2">
+
+[password] [MD5 hash] [SHA1 hash] [SHA256 hash] ...
+ toto;      09A5...;   78BC...;    140B...;
+ titi;      89BB...;   D3AD...;    C0D3...;
+ ...
+
+</pre>
+
+<p>
+Afin de rendre le processus de <i>brute-force</i> plus fastidieux, plusieurs techniques peuvent être mises en oeuvre. Les prochaines sections détaillent des procédés additionnels
+de sécurisation du stockage d'informations d'authentification qui permettent de protéger contre certaines attaques par dictionnaire pré-hashés: <i>rainbow tables</i> et rendre
+le processus plus coûteux en terme de calcul.
+</p>
+</div>
+</div>
+
+<div id="outline-container-orga29eca9" class="outline-3">
+<h3 id="orga29eca9"><span class="section-number-3">6.2.</span> Salt</h3>
+<div class="outline-text-3" id="text-6-2">
+<p>
+Le <i>salt</i> est une chaîne d'octets (généralement d'une longueur entre et 16 et 64 octets) générée aléatoirement par le serveur pour chaque utilisateur au moment de la création
+de son compte. Ce paramètre est concaténé au mot de passe saisi avant d'être passé dans une primitive de hachage (<b>hash(<i>password+salt</i>)</b>) pour générer la signature.
+Le <i>salt</i> est généralement stocké dans la base de données d'authentification. Ci-dessous, un exemple du format d'une base de données d'authentification introduisant un <i>salt</i>: 
+</p>
+
+<pre class="example" id="org891bbc5">
+
+[index] [user_login] [user_salt] [user_password_hash (hash(password+salt)] [user_data_entry_index]
+     1   yaspr        kjh$a_10... B98772AE...                               1
+     2   michel       j&amp;8-Qg*\... 9D062139..                                29
+     3   john         l!0p-d34... A1F67378..                                1500
+     4   toto         18g&lt;8091... DD61BC13...                               4
+
+</pre>
+
+<p>
+Ci-dessous, la routine permettant d'authentifier un utilisateur en utilisant le <i>salt</i> (ici, le symbole + dénote la concaténation):
+</p>
+
+<div class="org-src-container">
+<pre class="src src-c">
+u64 authenticate_user(authentication_table **auth_tab, ascii *user_login, u8 user_password)
+{
+  u64 index = 0;
+
+  if ((index = lookup_user_by_login(auth_tab, user_login) != 0))
+    {
+      u8 *user_password_hash = hash(user_password + auth_tab[index]-&gt;user_salt);
+
+      if (compare(user_password_hash, auth_tab[index]-&gt;user_password_hash) == 0)
+        return auth_tab[index]-&gt;user_data_entry_index;
+      else
+        return 0; //Login failure (wrong password)
+    }
+  else
+    return 0; //Login failure (wrong login)
+}
+
+</pre>
+</div>
+
+<p>
+Comme vous l'avez probablement déduit, le rajout du <i>salt</i> permet de randomiser la signature pour chaque utilisateur évitant ainsi d'avoir la même signature pour
+des utilisateurs ayant le même mot de passe. Cette solution permet aussi de rendre obsolète tout précalcul de signatures d'un dictionnaire, l'attaquant ne
+disposant pas des <i>salts</i> à l'avance. Ceci dit, cette solution reste toujours imparfaite face à la puissance de calcul disponible aujourd'hui. En réalité, lorsqu'une base
+de données d'authentification fuite, les <i>salts</i> des utilisateurs ainsi que leurs hashes associés sont à la disposition de l'attaquant.
+Il lui suffit donc de revenir à un modèle d'attaque <i>online</i> en utilisant plus de puissance de calcul (des GPUs ou FPGAs par exemple) pour réussir à casser certains mots
+de passes en utilisant un dictionnaire. 
+</p>
+</div>
+</div>
+
+<div id="outline-container-org60f3fb1" class="outline-3">
+<h3 id="org60f3fb1"><span class="section-number-3">6.3.</span> Salt + pepper</h3>
+<div class="outline-text-3" id="text-6-3">
+<p>
+Le <i>salt</i> n'étant pas suffisant à rendre la tâche impossible à un attaquant déterminé, le <i>pepper</i> fut introduit pour ralentir encore plus les calculs de hashes en masse.
+Le <i>pepper</i> est lui aussi une chaîne aléatoire d'octets générée par le serveur et qui permet de randomiser encore plus la signature produite par la fonction de hachage mais qui
+rajoute en plus une charge de calcul non négligeable. Si le <i>salt</i> est entièrement concaténé au mot de passe saisi, seulement un caractère du <i>pepper</i> sera aléatoirement choisi
+pour être concaténé au <i>salt</i> et au mot de passe avant de générer une signature (<b>hash(<i>password+salt+pepper[?]</i>)</b>).
+</p>
+
+<p>
+Ci-dessous, un exemple d'une base de données intégrant le <i>salt</i> ainsi que le <i>pepper</i>:
+</p>
+
+<pre class="example" id="orgeb3d7ff">
+
+[index] [user_login] [user_salt] [user_pepper ] [user_password_hash hash(password+salt+pepper[?])] [user_data_entry_index]
+     1   yaspr        kjh$a_10... $)98AZ...      C79072BC...                                        1
+     2   michel       j&amp;8-Qg*\... 91@_1e...      E0012148..                                         29
+     3   john         l!0p-d34... %k~-\x...      81B68181..                                         1500
+     4   toto         18g&lt;8091... l007&amp;m...      01B1DC03...                                        4
+
+</pre>
+
+<p>
+Ci-dessous, la routine permettant d'authentifier un utilisateur en prenant en compte le <i>salt</i> et le <i>pepper</i> (ici, le symbole + dénote la concaténation):
+</p>
+
+<div class="org-src-container">
+<pre class="src src-c">
+u64 authenticate_user(authentication_table **auth_tab, ascii *user_login, u8 user_password)
+{
+  u8  found = 0;
+  u64 index = 0;
+
+  if ((index = lookup_user_by_login(auth_tab, user_login) != 0))
+    {
+      for (u64 i = 0; !found &amp;&amp; i &lt; auth_tab[index]-&gt;pepper_length; i++)
+        {
+          u8 *user_password__hash = hash(user_password + auth_tab[index]-&gt;user_salt + auth_tab[index]-&gt;user_pepper[i]);
+
+          if (compare(user_password_hash, auth_tab[index]-&gt;user_password_hash) == 0)
+            found = 1;
+        }
+
+      if (found)
+        return auth_tab[index]-&gt;user_data_entry_index;
+      else
+        return 0; //Login failure (wrong password)
+    }
+  else
+    return 0; //Login failure (wrong login)
+}
+
+</pre>
+</div>
+
+<p>
+Comme vous pouvez le constater, casser des hashes qui ont été agrémentés de <i>salt</i> et de <i>pepper</i> n'est toujours pas une tâche impossible mais
+elle nécessitera un temps bien plus important et une puissance de calcul non négligeable.
+</p>
+</div>
+</div>
+
+<div id="outline-container-orgb2d00a8" class="outline-3">
+<h3 id="orgb2d00a8"><span class="section-number-3">6.4.</span> Autres techniques de stockage</h3>
+<div class="outline-text-3" id="text-6-4">
+<p>
+Il existe d'autres schémas de hachage de mots de passes sécurisés qui offrent la possibilité de définir plusieurs paramètres de robustesse.
+Par exemple, <b>OpenBSD</b>, ainsi que plusieurs distributions <b>Linux</b>, utilisent <a href="https://en.wikipedia.org/wiki/Bcrypt">bcrypt</a> (parfois <a href="https://en.wikipedia.org/wiki/Scrypt">scrypt</a>) afin de hacher les mots de passes et les protéger contre des
+attaques de type <i>brute-force</i>. La fonction <b>bcrypt</b> prend en paramètre un mot de passe (<i>password</i>), un coût (<i>c</i>) et un <i>salt</i> (<i>s</i>), puis
+génère une signature en utilisant une variante de l'algorithme de chiffrement <a href="https://en.wikipedia.org/wiki/Blowfish_(cipher)">BlowFish</a> répété <i>2<sup>c</sup></i> fois. C'est cette répétition paramétrable qui
+offre donc une certaine robustesse contre les attaques de type <i>brute-force</i> en rajoutant une charge de calcul importante: plusieurs milliers d'itérations
+interdépendentes qui appliquent une fonction de hachage de façon cyclique à chaque sortie.
+</p>
+
+<p>
+D'autres fonctions, par exemple <b>scrypt</b>, prennent en compte d'autres paramètres additionnels - comme l'empreinte mémoire - afin de rendre
+fastidieuse et très coûteuse la conception de circuits (<i>hardware</i>) spécialisés dans l'attaque de leurs signatures.
+</p>
+
+<p>
+Un autre algorithme, <b>Argon2</b>, fut le gagnant de la <b>Password Hashing Competition</b> (<a href="https://www.password-hashing.net/">https://www.password-hashing.net/</a>) organisée en 2013 pour sélectionner la méthode
+de stockage la plus sécurisée et la plus robuste contre des attaques de type <i>brute-force</i> variées. <b>Argon2</b> utilise l'algorithme de hachage <b>BLAKE2</b> et prend en paramètres:
+</p>
+
+<ul class="org-ul">
+<li>le temps d'exécution (<i>time cost</i>)</li>
+<li>la consommation mémoire (<i>memory cost</i>)</li>
+<li>le degré de parallélisme (<i>parallelism</i>)</li>
+</ul>
+
+<p>
+Ces paramètres permettent à l'utilisateur de choisir la charge de travail adaptée à ses besoins. <b>Argon2</b> vient sous la forme de deux versions:
+</p>
+
+<ul class="org-ul">
+<li>Argon2i : robuste contre les attaques par cannal auxiliaire (<i>side-channel attacks</i>)</li>
+<li>Argon2d : plus robuste contre les attaques de type <i>brute-force</i> utilisant des GPUs ou autres accélérateurs</li>
+</ul>
+
+<p>
+Pour plus d'informations sur le sujet, vous pouvez consulter les articles Wikipedia suivants:
+</p>
+
+<ul class="org-ul">
+<li><a href="https://en.wikipedia.org/wiki/PBKDF2">PBKDF2</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Argon2">Argon2</a></li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-orgc3de268" class="outline-3">
+<h3 id="orgc3de268"><span class="section-number-3">6.5.</span> Comment chosir un mot de passe sécurisé?</h3>
+<div class="outline-text-3" id="text-6-5">
+<p>
+La robustesse d'un mot de passe dépend principalement de son imprédictibilité et donc de l'entropie des bits qui le constituent. L'entropie d'un mot de passe dépend de sa
+longueur et de la diversité des caractères utilisés et elle est exprimée comme suit: <i>H = log<sub>2</sub>(N<sup>L</sup>)</i>, avec <i>N</i> représentant le nombre de symboles/caractères
+uniques pouvant constituer la chaîne et <i>L</i> sa longueur. 
+</p>
+
+<p>
+En général, on se base sur les intervalles ci-dessous pour définir la robustesse d'un mot de passe:
+</p>
+
+<ol class="org-ol">
+<li>0 -  28 bits: Niveau très faible</li>
+<li>28 -  35 bits: Niveau faible</li>
+<li>36 -  59 bits: Niveu raisonnable</li>
+<li>60 - 127 bits: Robuste</li>
+<li>128 - +oo bits: Très robuste</li>
+</ol>
+
+<p>
+Par exemple, pour la chaîne de caractères suivante: <b><code>F(x)=Sin(2*x)-Cos(x*x)</code></b>, l'entropie est de: 98.10 bits. On peut donc conclure que cette chaîne de caractères pourrait
+être utilisée comme un mot de passe robuste.
+</p>
+
+<p>
+Cette métrique n'est malheureusement pas fiable à elle seule. Par exemple,l'entropie de la chaîne suivante: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaa', est de 134.6 bits.
+Comme vous l'avez bien compris, cette métrique n'est pas automatique. Pour garantir qu'un mot de passe est robuste, il faudra donc respecter des règles strictes liées à la
+longueur (au moins 13 caractères) ainsi que pour la diversité des caractères utilisés: minuscules, majuscules, symboles divers, &#x2026;
+</p>
+</div>
+</div>
+
+<div id="outline-container-org54677a2" class="outline-3">
+<h3 id="org54677a2"><span class="section-number-3">6.6.</span> Sécurité et comparaison des primitives</h3>
+<div class="outline-text-3" id="text-6-6">
+<ul class="org-ul">
+<li><a href="https://en.wikipedia.org/wiki/Hash_function_security_summary">https://en.wikipedia.org/wiki/Hash_function_security_summary</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Comparison_of_cryptographic_hash_functions">https://en.wikipedia.org/wiki/Comparison_of_cryptographic_hash_functions</a></li>
+</ul>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org4125ee9" class="outline-2">
+<h2 id="org4125ee9"><span class="section-number-2">7.</span> Références</h2>
+<div class="outline-text-2" id="text-7">
+<ul class="org-ul">
+<li><a href="https://www.rfc-editor.org/rfc/rfc6234">https://www.rfc-editor.org/rfc/rfc6234</a></li>
+<li>Secure Hash Standard: <a href="https://csrc.nist.gov/files/pubs/fips/180-2/final/docs/fips180-2.pdf">https://csrc.nist.gov/files/pubs/fips/180-2/final/docs/fips180-2.pdf</a></li>
+</ul>
+</div>
+</div>
+</div>
+<div id="postamble" class="status">
+<p class="author">Author: yaspr</p>
+<p class="date">Created: 2024-01-08 Mon 11:46</p>
+<p class="validation"><a href="https://validator.w3.org/check?uri=referer">Validate</a></p>
+</div>
+</body>
+</html>
